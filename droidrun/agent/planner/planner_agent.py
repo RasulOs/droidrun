@@ -7,7 +7,7 @@ contextual, functional steps that can be executed by the ReAct agent.
 
 import logging
 from typing import List, Optional, Tuple, Dict, Any
-from ..react.react_llm_reasoner import ReActLLMReasoner
+from droidrun.agent.react.react_llm_reasoner import ReActLLMReasoner
 import json
 
 logger = logging.getLogger("droidrun")
@@ -69,6 +69,35 @@ Create a step-by-step plan to achieve this goal. Each step should be a contextua
 Remember to provide your response as a JSON object with a 'tasks' array containing the steps.
 """
 
+class TaskNode:
+    def __init__(self, task: str, idx: int):
+        self.task = task
+        self.idx = idx
+        self.parents = []  # type: List['TaskNode']
+        self.children = []  # type: List['TaskNode']
+
+    def __repr__(self):
+        return f"TaskNode({self.idx}: {self.task[:30]}...)"
+
+class TaskDAG:
+    def __init__(self):
+        self.nodes = []  # type: List[TaskNode]
+        self.edges = []  # type: List[Tuple[TaskNode, TaskNode]]
+
+    def add_node(self, node: TaskNode):
+        self.nodes.append(node)
+
+    def add_edge(self, parent: TaskNode, child: TaskNode):
+        self.edges.append((parent, child))
+        parent.children.append(child)
+        child.parents.append(parent)
+
+    def get_roots(self):
+        return [n for n in self.nodes if not n.parents]
+
+    def get_leaves(self):
+        return [n for n in self.nodes if not n.children]
+
 class TaskManager:
     """Manages the planning tasks and their execution state."""
     
@@ -128,6 +157,9 @@ class DroidPlanner:
         self.system_prompt = system_prompt or DEFAULT_PLANNER_SYSTEM_PROMPT
         self.user_prompt = user_prompt or DEFAULT_PLANNER_USER_PROMPT
         self.original_goal = None  # Add this to store the original goal
+        self.dag = None
+        self.completed_tasks = set()  # Track completed tasks by their indices
+        self.debug_mode = True  # Enable debug logging
         
     async def create_plan(self, goal: str) -> List[str]:
         """Create a plan for achieving the given goal.
@@ -163,6 +195,15 @@ class DroidPlanner:
             # Set tasks in task manager
             self.task_manager.set_tasks('\n'.join(tasks))
             
+            # Nach dem Plan erstellen, generieren wir den DAG
+            self.dag = await self._generate_dag_from_plan(tasks)
+            
+            if self.debug_mode:
+                logger.info("\n=== Initial Plan ===")
+                for idx, task in enumerate(tasks):
+                    logger.info(f"[{idx}] {task}")
+                self._log_dag_structure()
+            
             return tasks
             
         except Exception as e:
@@ -193,17 +234,95 @@ class DroidPlanner:
         return tasks
         
     async def get_next_task(self) -> Optional[str]:
-        """Get the next task to be executed.
+        """Get the next task to be executed based on the DAG structure.
         
         Returns:
             The next task or None if no more tasks
         """
-        return self.task_manager.get_current_task()
+        if not self.dag:
+            # Fallback to linear execution if no DAG exists
+            return self.task_manager.get_current_task()
+
+        # Find all root nodes (nodes without parents) that haven't been completed
+        available_tasks = [
+            node for node in self.dag.get_roots()
+            if node.idx not in self.completed_tasks
+        ]
+
+        if not available_tasks:
+            # Check if we're done (all tasks completed)
+            if len(self.completed_tasks) == len(self.dag.nodes):
+                return None
+            # If we have no available tasks but not all are completed,
+            # we might have a cycle or missing dependencies
+            logger.warning("No available tasks found but not all tasks are completed")
+            return None
+
+        # For now, just take the first available task
+        # TODO: Could implement more sophisticated task selection here
+        next_node = available_tasks[0]
+        next_task = next_node.task
         
-    def mark_task_complete(self) -> None:
-        """Mark the current task as complete and advance to next task."""
-        self.task_manager.advance_task()
+        if self.debug_mode:
+            logger.info("\n=== Task Selection ===")
+            if next_task:
+                logger.info(f"Selected next task: {next_task}")
+            else:
+                logger.info("No more tasks available")
+            self._log_dag_structure()
         
+        return next_task
+
+    def mark_task_complete(self, task_idx: int) -> None:
+        """Mark a task as complete and update the DAG state.
+        
+        Args:
+            task_idx: The index of the completed task
+        """
+        if not self.dag:
+            # Fallback to linear execution
+            self.task_manager.advance_task()
+            return
+
+        self.completed_tasks.add(task_idx)
+        
+        # Log completion for debugging
+        logger.debug(f"Task {task_idx} marked as complete. Completed tasks: {self.completed_tasks}")
+        
+        if self.debug_mode:
+            logger.info(f"\n=== Task {task_idx} Completed ===")
+            self._log_dag_structure()
+
+    def get_task_dependencies(self, task_idx: int) -> List[int]:
+        """Get the indices of tasks that must be completed before this task.
+        
+        Args:
+            task_idx: The index of the task to check
+            
+        Returns:
+            List of task indices that are dependencies
+        """
+        if not self.dag or task_idx >= len(self.dag.nodes):
+            return []
+            
+        node = self.dag.nodes[task_idx]
+        return [parent.idx for parent in node.parents]
+
+    def can_execute_task(self, task_idx: int) -> bool:
+        """Check if a task can be executed (all dependencies completed).
+        
+        Args:
+            task_idx: The index of the task to check
+            
+        Returns:
+            True if the task can be executed, False otherwise
+        """
+        if not self.dag or task_idx >= len(self.dag.nodes):
+            return True
+            
+        dependencies = self.get_task_dependencies(task_idx)
+        return all(dep_idx in self.completed_tasks for dep_idx in dependencies)
+
     async def handle_task_failure(self, task: str, error: str) -> Optional[List[str]]:
         """Handle a failed task execution by revising only the failed task.
         
@@ -359,4 +478,77 @@ class DroidPlanner:
         if not tasks:
             return f"No {status} tasks."
             
-        return "\n".join(f"- {task} ({status})" for task in tasks) 
+        return "\n".join(f"- {task} ({status})" for task in tasks)
+
+    async def _generate_dag_from_plan(self, tasks: List[str]) -> TaskDAG:
+        """Generates a DAG from the task list by analyzing dependencies."""
+        
+        # Prompt for the LLM to generate the DAG
+        dag_prompt = f"""Analyze the following tasks and create a Directed Acyclic Graph (DAG) showing their dependencies.
+        Each task should be connected to tasks it depends on. Tasks that can be executed in parallel should not be connected.
+        
+        Tasks:
+        {json.dumps(tasks, indent=2)}
+        
+        Return a JSON object with the following structure:
+        {{
+            "nodes": [
+                {{"id": 0, "task": "task description"}},
+                ...
+            ],
+            "edges": [
+                {{"from": 0, "to": 1}},
+                ...
+            ]
+        }}
+        
+        Rules:
+        1. Each task must be a node in the graph
+        2. Edges should only be created if a task truly depends on another
+        3. Tasks that can be executed in parallel should not be connected
+        4. The graph must be acyclic (no circular dependencies)
+        5. Use the original task indices as node IDs
+        """
+        
+        # LLM generates the DAG
+        response = await self.llm.generate_response(
+            system_prompt="You are an expert at analyzing task dependencies and creating DAGs.",
+            user_prompt=dag_prompt
+        )
+        
+        try:
+            # Parse the LLM response
+            dag_data = json.loads(response)
+            
+            # Create the DAG
+            dag = TaskDAG()
+            
+            # Create Nodes
+            for node_data in dag_data["nodes"]:
+                node = TaskNode(tasks[node_data["id"]], node_data["id"])
+                dag.add_node(node)
+            
+            # Create Edges
+            for edge in dag_data["edges"]:
+                parent = dag.nodes[edge["from"]]
+                child = dag.nodes[edge["to"]]
+                dag.add_edge(parent, child)
+                
+            return dag
+            
+        except json.JSONDecodeError:
+            logger.error("Failed to parse DAG from LLM response")
+            # Fallback: Create a linear DAG
+            return self._build_linear_dag(tasks)
+            
+    def _build_linear_dag(self, tasks: List[str]) -> TaskDAG:
+        """Fallback: Creates a linear DAG if the LLM analysis fails."""
+        dag = TaskDAG()
+        prev_node = None
+        for idx, task in enumerate(tasks):
+            node = TaskNode(task, idx)
+            dag.add_node(node)
+            if prev_node is not None:
+                dag.add_edge(prev_node, node)
+            prev_node = node
+        return dag
