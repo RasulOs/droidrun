@@ -9,6 +9,7 @@ import logging
 from typing import List, Optional, Tuple, Dict, Any
 from ..react.react_llm_reasoner import ReActLLMReasoner
 import json
+from dataclasses import dataclass, field
 
 logger = logging.getLogger("droidrun")
 
@@ -69,40 +70,73 @@ Create a step-by-step plan to achieve this goal. Each step should be a contextua
 Remember to provide your response as a JSON object with a 'tasks' array containing the steps.
 """
 
-class TaskManager:
-    """Manages the planning tasks and their execution state."""
+@dataclass
+class Task:
+    """Represents a single task in the execution plan."""
+    id: int
+    description: str
+    expected_outcome: str
+    dependencies: List[int]
+    completed: bool = False
+    failed: bool = False
+    error: Optional[str] = None
+
+@dataclass
+class Plan:
+    """Represents an execution plan consisting of ordered tasks."""
+    tasks: List[Task] = field(default_factory=list)
+    current_task_index: int = 0
     
-    def __init__(self):
-        self.tasks: List[str] = []
-        self.current_task_index: int = 0
+    def add_task(self, task: Task) -> None:
+        """Add a task to the plan."""
+        self.tasks.append(task)
         
-    def set_tasks(self, tasks: str) -> None:
-        """Set the list of tasks from a newline-separated string."""
-        self.tasks = [task.strip() for task in tasks.split('\n') if task.strip()]
-        self.current_task_index = 0
-        
-    def add_task(self, task: str) -> None:
-        """Add a single task to the list."""
-        self.tasks.append(task.strip())
-        
-    def get_current_task(self) -> Optional[str]:
-        """Get the current task to be executed."""
-        if self.current_task_index < len(self.tasks):
+    def get_current_task(self) -> Optional[Task]:
+        """Get the current task in the plan."""
+        if 0 <= self.current_task_index < len(self.tasks):
             return self.tasks[self.current_task_index]
         return None
         
-    def advance_task(self) -> None:
-        """Move to the next task."""
+    def advance(self) -> None:
+        """Move to the next task in the plan."""
         self.current_task_index += 1
         
-    def get_all_tasks(self) -> List[str]:
-        """Get all tasks in the plan."""
-        return self.tasks
+    def mark_current_task_complete(self) -> None:
+        """Mark the current task as completed."""
+        if task := self.get_current_task():
+            task.completed = True
+            
+    def mark_current_task_failed(self, error: str) -> None:
+        """Mark the current task as failed with an error message."""
+        if task := self.get_current_task():
+            task.failed = True
+            task.error = error
+            
+    def is_complete(self) -> bool:
+        """Check if all tasks in the plan are completed."""
+        return all(task.completed for task in self.tasks)
         
-    def clear_tasks(self) -> None:
-        """Clear all tasks."""
-        self.tasks = []
-        self.current_task_index = 0
+    def has_failed_tasks(self) -> bool:
+        """Check if any tasks in the plan have failed."""
+        return any(task.failed for task in self.tasks)
+        
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert the plan to a dictionary format."""
+        return {
+            "tasks": [
+                {
+                    "id": task.id,
+                    "description": task.description,
+                    "expected_outcome": task.expected_outcome,
+                    "dependencies": task.dependencies,
+                    "completed": task.completed,
+                    "failed": task.failed,
+                    "error": task.error
+                }
+                for task in self.tasks
+            ],
+            "current_task_index": self.current_task_index
+        }
 
 class DroidPlanner:
     """Planning agent that creates execution plans for the ReAct agent."""
@@ -124,19 +158,20 @@ class DroidPlanner:
         """
         self.llm = llm
         self.max_retries = max_retries
-        self.task_manager = TaskManager()
+        self.current_plan: Optional[Plan] = None
+        self.task_history: List[Dict[str, Any]] = []
         self.system_prompt = system_prompt or DEFAULT_PLANNER_SYSTEM_PROMPT
         self.user_prompt = user_prompt or DEFAULT_PLANNER_USER_PROMPT
         self.original_goal = None  # Add this to store the original goal
         
-    async def create_plan(self, goal: str) -> List[str]:
+    async def create_plan(self, goal: str) -> Plan:
         """Create a plan for achieving the given goal.
         
         Args:
             goal: The high-level goal to achieve
             
         Returns:
-            List of planned tasks
+            A new Plan object containing the sequence of tasks
         """
         try:
             # Store the original goal
@@ -160,10 +195,21 @@ class DroidPlanner:
                 logger.warning("Failed to parse JSON response, falling back to text parsing")
                 tasks = self._extract_tasks(response)
             
-            # Set tasks in task manager
-            self.task_manager.set_tasks('\n'.join(tasks))
+            # Create new plan
+            plan = Plan()
             
-            return tasks
+            # Add tasks to plan
+            for task_data in tasks:
+                task = Task(
+                    id=len(plan.tasks) + 1,
+                    description=task_data,
+                    expected_outcome=f"Completed task {len(plan.tasks) + 1}",
+                    dependencies=[]
+                )
+                plan.add_task(task)
+            
+            self.current_plan = plan
+            return plan
             
         except Exception as e:
             logger.error(f"Error creating plan: {e}")
@@ -192,18 +238,40 @@ class DroidPlanner:
                 
         return tasks
         
-    async def get_next_task(self) -> Optional[str]:
-        """Get the next task to be executed.
-        
-        Returns:
-            The next task or None if no more tasks
-        """
-        return self.task_manager.get_current_task()
+    def get_next_task(self) -> Optional[Task]:
+        """Get the next task to execute from the current plan."""
+        if self.current_plan:
+            return self.current_plan.get_current_task()
+        return None
         
     def mark_task_complete(self) -> None:
-        """Mark the current task as complete and advance to next task."""
-        self.task_manager.advance_task()
-        
+        """Mark the current task as completed and advance to the next task."""
+        if self.current_plan:
+            self.current_plan.mark_current_task_complete()
+            self.current_plan.advance()
+            
+            # Record in task history
+            if task := self.current_plan.get_current_task():
+                self.task_history.append({
+                    "task": task.description,
+                    "outcome": "completed",
+                    "expected_outcome": task.expected_outcome
+                })
+                
+    def mark_task_failed(self, error: str) -> None:
+        """Mark the current task as failed with an error message."""
+        if self.current_plan:
+            self.current_plan.mark_current_task_failed(error)
+            
+            # Record in task history
+            if task := self.current_plan.get_current_task():
+                self.task_history.append({
+                    "task": task.description,
+                    "outcome": "failed",
+                    "error": error,
+                    "expected_outcome": task.expected_outcome
+                })
+                
     async def handle_task_failure(self, task: str, error: str) -> Optional[List[str]]:
         """Handle a failed task execution by revising only the failed task.
         
@@ -216,8 +284,8 @@ class DroidPlanner:
         """
         try:
             # Get all tasks and current progress
-            all_tasks = self.task_manager.get_all_tasks()
-            current_index = self.task_manager.current_task_index
+            all_tasks = self.current_plan.tasks
+            current_index = self.current_plan.current_task_index
             
             # Prepare context of completed tasks
             completed_tasks = all_tasks[:current_index]
@@ -268,9 +336,9 @@ class DroidPlanner:
             new_tasks = completed_tasks + [revised_task] + remaining_tasks
             
             # Set tasks in task manager
-            self.task_manager.set_tasks('\n'.join(new_tasks))
+            self.current_plan.tasks = new_tasks
             # Reset current_task_index to the revised task
-            self.task_manager.current_task_index = len(completed_tasks)
+            self.current_plan.current_task_index = len(completed_tasks)
             
             return new_tasks
             
@@ -289,8 +357,8 @@ class DroidPlanner:
         """
         try:
             # Get remaining tasks
-            all_tasks = self.task_manager.get_all_tasks()
-            current_index = self.task_manager.current_task_index
+            all_tasks = self.current_plan.tasks
+            current_index = self.current_plan.current_task_index
             remaining_tasks = all_tasks[current_index + 1:]
             
             if not remaining_tasks:
@@ -333,8 +401,8 @@ class DroidPlanner:
                     
                 # Update task manager with new tasks
                 updated_tasks = all_tasks[:current_index + 1] + new_tasks
-                self.task_manager.set_tasks('\n'.join(updated_tasks))
-                self.task_manager.current_task_index = current_index
+                self.current_plan.tasks = updated_tasks
+                self.current_plan.current_task_index = current_index
                 
                 return new_tasks
                 

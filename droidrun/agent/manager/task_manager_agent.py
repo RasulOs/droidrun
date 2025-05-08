@@ -135,42 +135,6 @@ Analyze the task and respond with a JSON object containing:
 
             return task_result
 
-            """if selected_agent == "app_starter" and confidence >= 0.7:
-                logger.info("Delegating to AppStarter agent")
-                result = await self.app_starter_agent.start_app(task)
-
-                return {
-                    "success": result.get("success", False),
-                    "error": (
-                        None if result.get("success", False) else "Failed to start app"
-                    ),
-                    "agent_used": "app_starter",
-                    "confidence": confidence,
-                }
-
-            # Default to ReAct agent for all other cases
-            logger.info("Delegating to ReAct agent")
-            steps, action_count = await self.react_agent.run(task)
-
-            # Check if task was successful
-            task_success = False
-            for step in reversed(steps):
-                if step.step_type.value == "observation":
-                    if "goal achieved" in step.content.lower():
-                        task_success = True
-                        break
-  
-
-            return {
-                "success": task_success,
-                "steps": steps,
-                "action_count": action_count,
-                "error": None if task_success else "Task execution failed",
-                "agent_used": "react",
-                "confidence": confidence,
-            }
-            """
-
         except Exception as e:
             logger.error(f"Error executing task: {e}")
             return {

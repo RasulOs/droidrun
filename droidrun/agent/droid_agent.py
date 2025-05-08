@@ -8,9 +8,9 @@ managing the Planner, ReAct agent and AppStarter agent.
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
-from .react.react_llm_reasoner import ReActLLMReasoner
+from .base_llm_reasoner import BaseLLMReasoner
 from .react.react_agent import ReActAgent
-from .app_starter.app_starter_agent import AppStarterAgent, AppStarterLLMReasoner
+from .app_starter.app_starter_agent import AppStarterAgent
 from .planner.planner_agent import DroidPlanner
 from .manager.task_manager_agent import TaskManagerAgent, TaskManagerAgentConfig
 
@@ -45,47 +45,32 @@ class DroidAgent:
             base_url: Optional base URL for the API
             max_retries: Maximum number of retries for failed tasks
         """
-        # Initialize ReAct LLM reasoner
-        self.react_llm = ReActLLMReasoner(
+        self.llm = BaseLLMReasoner(
             llm_provider=llm_provider,
             model_name=model_name,
             api_key=api_key,
             temperature=temperature,
+            max_tokens=2000,
             vision=vision,
             base_url=base_url
         )
         
-        # Initialize AppStarter LLM reasoner
-        self.app_starter_llm = AppStarterLLMReasoner(
-            llm_provider=llm_provider,
-            model_name=model_name,
-            api_key=api_key,
-            temperature=temperature,
-            vision=vision,
-            base_url=base_url
-        )
-        
-        # Initialize AppStarter agent
         self.app_starter = AppStarterAgent(
-            llm=self.app_starter_llm,
+            llm=self.llm, 
             device_serial=device_serial
         )
         
-        # Initialize ReAct agent
         self.react = ReActAgent(
-            llm=self.react_llm,
+            llm=self.llm,
             device_serial=device_serial,
             max_steps=max_steps,
             task=None
         )
-        
-        # Initialize Planner
         self.planner = DroidPlanner(
-            llm=self.react_llm,
+            llm=self.llm,
             max_retries=max_retries
         )
         
-        # Initialize Task Manager Agent
         self.task_manager = TaskManagerAgent(
             llm=self.react_llm,
             agents=[
