@@ -1,8 +1,9 @@
 from droidrun.agent.context.agent_persona import AgentPersona
-from droidrun.tools.actions import Tools
+from droidrun.tools.adb_tools import ADBTools
 
 EXTRACTOR = AgentPersona(
-    name="DataExtractor", 
+    name="DataExtractor",
+    type="Android",
     description="Specialized in extracting data from UI elements and screenshots",
     expertise_areas=[
         "data extraction", 
@@ -10,8 +11,8 @@ EXTRACTOR = AgentPersona(
         "text recognition"
     ],
     allowed_tools=[
-        Tools.extract.__name__,
-        Tools.complete.__name__
+        ADBTools.extract.__name__,
+        ADBTools.complete.__name__
     ],
     required_context=[
         "ui_state",

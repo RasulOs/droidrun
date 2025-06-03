@@ -17,7 +17,7 @@ from droidrun.agent.codeact.prompts import (
     DEFAULT_NO_THOUGHTS_PROMPT
 )
 
-from droidrun.tools import Tools
+from droidrun.tools import ADBTools, IOSTools
 from typing import Optional, Dict, Tuple, List, Any, Callable
 from droidrun.agent.context.agent_persona import AgentPersona
 
@@ -35,7 +35,7 @@ class CodeActAgent(Workflow):
         self,
         llm: LLM,
         persona: AgentPersona,
-        tools_instance: 'Tools',
+        tools_instance: ADBTools | IOSTools,
         all_tools_list: Dict[str, Callable[..., Any]],
         max_steps: int = 10,
         debug: bool = False,

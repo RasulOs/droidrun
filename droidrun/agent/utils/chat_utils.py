@@ -8,9 +8,6 @@ import logging
 from typing import List, TYPE_CHECKING, Optional, Tuple
 from llama_index.core.base.llms.types import ChatMessage, ImageBlock, TextBlock
 
-if TYPE_CHECKING:
-    from droidrun.tools import Tools
-
 logger = logging.getLogger("droidrun")
 logging.basicConfig(level=logging.INFO)
 

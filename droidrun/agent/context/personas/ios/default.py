@@ -1,20 +1,21 @@
 from droidrun.agent.context.agent_persona import AgentPersona
-from droidrun.tools.actions import Tools
+from droidrun.tools import IOSTools
 
-DEFAULT = AgentPersona(
+IOS_DEFAULT = AgentPersona(
     name="Default",
+    type="IOS",
     description="Specialized in UI interactions, navigation, and form filling",
     expertise_areas=[
         "UI navigation", "button interactions", "text input", 
         "menu navigation", "form filling", "scrolling"
     ],
     allowed_tools=[
-        Tools.swipe.__name__,
-        Tools.input_text.__name__,
-        Tools.press_key.__name__,
-        Tools.tap_by_index.__name__, 
-        Tools.remember.__name__,
-        Tools.complete.__name__
+        IOSTools.start_app.__name__,
+        IOSTools.swipe.__name__,
+        IOSTools.input_text.__name__,
+        IOSTools.tap_by_index.__name__, 
+        IOSTools.remember.__name__,
+        IOSTools.complete.__name__
     ],
     required_context=[
         "ui_state",

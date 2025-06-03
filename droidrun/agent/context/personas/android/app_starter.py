@@ -1,16 +1,17 @@
 from droidrun.agent.context.agent_persona import AgentPersona
-from droidrun.tools.actions import Tools
+from droidrun.tools.adb_tools import ADBTools
 
 APP_STARTER_EXPERT = AgentPersona(
-    name="AppStarterExpert", 
+    name="AppStarterExpert",
+    type="Android", 
     description="Specialized in app launching and package management",
     expertise_areas=[
         "app launching", "package management", "app installation",
         "startup sequences", "app lifecycle"
     ],
     allowed_tools=[
-        Tools.start_app.__name__,
-        Tools.complete.__name__
+        ADBTools.start_app.__name__,
+        ADBTools.complete.__name__
     ],
     required_context=[
         "packages"

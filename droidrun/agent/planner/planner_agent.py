@@ -16,10 +16,10 @@ from llama_index.core.llms.llm import LLM
 from droidrun.agent.utils.executer import SimpleCodeExecutor
 from droidrun.agent.utils import chat_utils
 from droidrun.agent.utils.task_manager import TaskManager
-from droidrun.tools import Tools
 from droidrun.agent.common.events import ScreenshotEvent
 from droidrun.agent.planner.events import PlanInputEvent, PlanCreatedEvent, PlanThinkingEvent
 from droidrun.agent.context.agent_persona import AgentPersona
+from droidrun.tools import ADBTools, IOSTools
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -27,8 +27,6 @@ load_dotenv()
 # Setup logger
 logger = logging.getLogger("droidrun")
 
-if TYPE_CHECKING:
-    from droidrun.tools import Tools
 
 class PlannerAgent(Workflow):
     def __init__(self,
@@ -36,7 +34,7 @@ class PlannerAgent(Workflow):
                 llm: LLM, 
                 personas: List[AgentPersona],
                 task_manager: TaskManager,
-                tools_instance: Tools,
+                tools_instance: ADBTools | IOSTools,
                 system_prompt = None,
                 user_prompt = None, 
                 debug = False,

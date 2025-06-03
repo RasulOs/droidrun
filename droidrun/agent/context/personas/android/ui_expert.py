@@ -1,20 +1,21 @@
 from droidrun.agent.context.agent_persona import AgentPersona
-from droidrun.tools.actions import Tools
+from droidrun.tools.adb_tools import ADBTools
 
 UI_EXPERT = AgentPersona(
     name="UIExpert",
+    type="Android",
     description="Specialized in UI interactions, navigation, and form filling",
     expertise_areas=[
         "UI navigation", "button interactions", "text input", 
         "menu navigation", "form filling", "scrolling"
     ],
     allowed_tools=[
-        Tools.swipe.__name__,
-        Tools.input_text.__name__,
-        Tools.press_key.__name__,
-        Tools.tap_by_index.__name__, 
-        Tools.remember.__name__,
-        Tools.complete.__name__
+        ADBTools.swipe.__name__,
+        ADBTools.input_text.__name__,
+        ADBTools.press_key.__name__,
+        ADBTools.tap_by_index.__name__, 
+        ADBTools.remember.__name__,
+        ADBTools.complete.__name__
     ],
     required_context=[
         "ui_state",

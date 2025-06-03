@@ -11,5 +11,6 @@ class AgentPersona:
     allowed_tools: List[str]
     required_context: List[str]
     expertise_areas: List[str]
+    type: str
 
 AppAgent = AgentPersona

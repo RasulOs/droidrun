@@ -17,7 +17,7 @@ from rich.layout import Layout
 from rich.text import Text
 from rich.spinner import Spinner
 from rich.align import Align
-from droidrun.tools import DeviceManager, Tools, load_tools
+from droidrun.tools import DeviceManager, load_tools, ADBTools
 from droidrun.agent.droid import DroidAgent
 from droidrun.agent.utils.llm_picker import load_llm
 from droidrun.cli.event_handler import EventHandler
@@ -405,7 +405,7 @@ async def setup(path: str, device: str | None):
         if not device_obj:
             console.print(f"[bold red]Error:[/] Could not get device object for {device}")
             return
-        tools = Tools(serial=device)
+        tools = ADBTools(serial=device)
         console.print(f"[bold blue]Step 1/2: Installing APK:[/] {path}")
         result = await tools.install_app(path, False, True)
         
