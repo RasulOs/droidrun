@@ -196,15 +196,11 @@ class DroidAgent(Workflow):
 
         logger.info("✅ DroidAgent initialized successfully.")
 
-    def run(self) -> WorkflowHandler:
-        """
-        Run the DroidAgent workflow.
-        """
-        return super().run()
-
     @step
     async def execute_task(
-        self, ctx: Context, ev: CodeActExecuteEvent
+        self, ctx: Context,
+        ev: CodeActExecuteEvent,
+        codeact_agent: CodeActAgent = MockWorkflow(),
     ) -> CodeActResultEvent:
         """
         Execute a single task using the CodeActAgent.
@@ -222,18 +218,10 @@ class DroidAgent(Workflow):
         logger.info(f"🔧 Executing task: {task.description}")
 
         try:
-            codeact_agent = CodeActAgent(
-                llm=self.llm,
-                persona=persona,
-                vision=self.vision,
-                max_steps=self.max_codeact_steps,
-                all_tools_list=self.tool_list,
-                tools_instance=self.tools_instance,
-                debug=self.debug,
-                timeout=self.timeout,
-            )
 
             handler = codeact_agent.run(
+                persona=persona,
+                tools=self.tools_instance,
                 input=task.description,
                 remembered_info=self.tools_instance.memory,
                 reflection=reflection,
@@ -242,21 +230,21 @@ class DroidAgent(Workflow):
             async for nested_ev in handler.stream_events():
                 self.handle_stream_event(nested_ev, ctx)
 
-            result = await handler
+            response = await handler
 
-            if "success" in result and result["success"]:
+            if "success" in response.result and response.result["success"]:
                 return CodeActResultEvent(
                     success=True,
-                    reason=result["reason"],
+                    reason=response.result["reason"],
                     task=task,
-                    steps=result["codeact_steps"],
+                    steps=response.result["codeact_steps"],
                 )
             else:
                 return CodeActResultEvent(
                     success=False,
-                    reason=result["reason"],
+                    reason=response.result["reason"],
                     task=task,
-                    steps=result["codeact_steps"],
+                    steps=response.result["codeact_steps"],
                 )
 
         except Exception as e:
@@ -266,7 +254,7 @@ class DroidAgent(Workflow):
 
                 logger.error(traceback.format_exc())
             return CodeActResultEvent(
-                success=False, reason=f"Error: {str(e)}", task=task, steps=[]
+                success=False, reason=f"Error: {str(e)}", task=task, steps=0
             )
 
     @step

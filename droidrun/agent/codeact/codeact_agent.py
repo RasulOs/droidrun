@@ -262,7 +262,7 @@ class CodeActAgent(Workflow):
             if self.tools.finished == True:
                 logger.debug("  - Task completed.")
                 event = TaskEndEvent(
-                    success=self.tools.success, reason=self.tools.reason
+                    success=self.tools.success, reason=self.tools.reason if self.tools.reason is not None else "No reason provided"
                 )
                 ctx.write_event_to_stream(event)
                 return event

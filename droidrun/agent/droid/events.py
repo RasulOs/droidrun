@@ -9,6 +9,7 @@ class CodeActExecuteEvent(Event):
 class CodeActResultEvent(Event):
     success: bool
     reason: str
+    task: Task
     steps: int
 
 class ReasoningLogicEvent(Event):
