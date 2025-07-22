@@ -1,7 +1,9 @@
 from llama_index.core.llms import ChatMessage
-from llama_index.core.workflow import Event
+from llama_index.core.workflow import Event, StartEvent, StopEvent
 from typing import Optional
 from ..context.episodic_memory import EpisodicMemory
+from droidrun.tools import Tools
+from droidrun.agent.context.agent_persona import AgentPersona
 
 class TaskInputEvent(Event):
     input: list[ChatMessage]
@@ -26,3 +28,10 @@ class TaskEndEvent(Event):
 
 class EpisodicMemoryEvent(Event):
     episodic_memory: EpisodicMemory
+
+class CodeActStartEvent(StartEvent):
+    persona: AgentPersona
+    tools: Tools
+
+class CodeActStopEvent(StopEvent):
+    pass
