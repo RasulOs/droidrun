@@ -40,20 +40,20 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         This ensures logs are visible when using DroidAgent directly.
         """
         # Only configure if no handlers exist (avoid duplicate configuration)
-        if not logger.handlers:
-            # Create a console handler
-            handler = logging.StreamHandler()
+        # if not logger.handlers:
+        #     # Create a console handler
+        #     handler = logging.StreamHandler()
             
-            # Set format
-            if debug:
-                formatter = logging.Formatter("%(asctime)s %(levelname)s: %(message)s", "%H:%M:%S")
-            else:
-                formatter = logging.Formatter("%(message)s")
+        #     # Set format
+        #     # if debug:
+        #     #     formatter = logging.Formatter("%(asctime)s %(levelname)s: %(message)s", "%H:%M:%S")
+        #     # else:
+        #     #     formatter = logging.Formatter("%(message)s")
             
-            handler.setFormatter(formatter)
-            logger.addHandler(handler)
-            logger.setLevel(logging.DEBUG if debug else logging.INFO)
-            logger.propagate = False
+        #     # handler.setFormatter(formatter)
+        #     logger.addHandler(handler)
+        #     logger.setLevel(logging.DEBUG if debug else logging.INFO)
+        #     logger.propagate = False
     
     def __init__(
         self, 
@@ -95,7 +95,7 @@ A wrapper class that coordinates between PlannerAgent (creates plans) and
         self.user_id = kwargs.pop("user_id", None)
         super().__init__(timeout=timeout ,*args,**kwargs)
         # Configure default logging if not already configured
-        self._configure_default_logging(debug=debug)
+        # self._configure_default_logging(debug=debug)
         
         # Setup global tracing first if enabled
         if enable_tracing:
