@@ -130,6 +130,7 @@ class DroidAgent(Workflow):
         self.reasoning = reasoning
         self.reflection = reflection
         self.debug = debug
+        self._output_schema = None
 
         self.event_counter = 0
         # Handle backward compatibility: bool -> str mapping
@@ -226,20 +227,6 @@ class DroidAgent(Workflow):
         """
         self._output_schema = schema
 
-    def _build_structured_output(self, data: dict) -> Optional[BaseModel]:
-        """Build a structured output using the configured Pydantic schema (v2)."""
-        if not self._output_schema:
-            return None
-        try:
-            return coerce_to_model(self._output_schema, data)
-        except Exception as e:
-            logger.exception(
-                "Structured output validation failed: schema=%s, keys=%s, error=%s",
-                getattr(self._output_schema, "__name__", str(self._output_schema)),
-                sorted(list(data.keys())),
-                e,
-            )
-            return None
 
     def get_output_schema_instruction(self) -> Optional[str]:
         """Return a short instruction for LLM prompts based on the configured schema."""
@@ -282,6 +269,7 @@ class DroidAgent(Workflow):
                 max_steps=self.max_codeact_steps,
                 all_tools_list=self.tool_list,
                 tools_instance=self.tools_instance,
+                output_schema=self.get_output_schema_instruction() if self._output_schema else None,
                 debug=self.debug,
                 timeout=self.timeout,
             )
@@ -306,7 +294,7 @@ class DroidAgent(Workflow):
                     reason=result["reason"],
                     output=output_payload,
                     task=task,
-                    steps=len(result.get("codeact_steps", [])),  # Convert to integer
+                    steps=result.get("codeact_steps", 0),  # Already an integer
                 )
             else:
                 return CodeActResultEvent(
@@ -314,7 +302,7 @@ class DroidAgent(Workflow):
                     reason=result.get("reason", ""),
                     output=output_payload,
                     task=task,
-                    steps=len(result.get("codeact_steps", [])),  # Convert to integer
+                    steps=result.get("codeact_steps", 0),  # Already an integer
                 )
 
         except Exception as e:
@@ -557,7 +545,7 @@ class DroidAgent(Workflow):
             DroidAgentFinalizeEvent(
                 tasks=",".join([f"{t.agent_type}:{t.description}" for t in ev.task]),
                 success=ev.success,
-                output=ev.output,
+                output=str(ev.output) if not isinstance(ev.output, str) else ev.output,
                 steps=ev.steps,
             ),
             self.user_id,

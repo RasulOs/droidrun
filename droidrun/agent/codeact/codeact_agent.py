@@ -10,6 +10,7 @@ from llama_index.core.prompts import PromptTemplate
 from llama_index.core.llms.llm import LLM
 from llama_index.core.workflow import Workflow, StartEvent, StopEvent, Context, step
 from llama_index.core.memory import Memory
+from pydantic import BaseModel
 from droidrun.agent.codeact.events import (
     TaskInputEvent,
     TaskEndEvent,
@@ -19,6 +20,7 @@ from droidrun.agent.codeact.events import (
     EpisodicMemoryEvent,
 )
 from droidrun.agent.common.events import ScreenshotEvent, RecordUIStateEvent
+from droidrun.agent.context import personas
 from droidrun.agent.utils import chat_utils
 from droidrun.agent.utils.executer import SimpleCodeExecutor
 from droidrun.agent.codeact.prompts import (
@@ -50,7 +52,7 @@ class CodeActAgent(Workflow):
         all_tools_list: Dict[str, Callable[..., Any]],
         max_steps: int = 5,
         debug: bool = False,
-        output_schema_instruction: Optional[str] = None,
+        output_schema: Optional[str] = None,
         *args,
         **kwargs,
     ):
@@ -63,6 +65,8 @@ class CodeActAgent(Workflow):
 
         self.user_prompt = persona.user_prompt
         self.no_thoughts_prompt = None
+        self.persona = persona
+        self.output_schema = output_schema
 
         self.vision = vision
 
@@ -91,15 +95,6 @@ class CodeActAgent(Workflow):
         self.system_prompt = ChatMessage(
             role="system", content=self.system_prompt_content
         )
-        # Optional schema instruction prompt to nudge structured outputs
-        self.schema_prompt: Optional[ChatMessage] = None
-        if output_schema_instruction:
-            schema_content = (
-                "You must format your final outputs to match the following schema. "
-                "When returning any results, ensure they can be parsed as valid JSON for fields.\n"
-                f"{output_schema_instruction}"
-            )
-            self.schema_prompt = ChatMessage(role="system", content=schema_content)
 
         self.required_context = persona.required_context
 
@@ -130,12 +125,21 @@ class CodeActAgent(Workflow):
 
         logger.debug("  - Adding goal to memory.")
         goal = user_input
-        self.user_message = ChatMessage(
-            role="user",
-            content=PromptTemplate(
-                self.user_prompt or DEFAULT_CODE_ACT_USER_PROMPT
-            ).format(goal=goal),
-        )
+
+        if self.persona.name == "Extractor":
+            self.user_message = ChatMessage(
+                role="user",
+                content=PromptTemplate(
+                    self.user_prompt or self.persona.user_prompt
+                ).format(goal=goal, schema=self.output_schema if self.output_schema else ""),
+            )
+        else:
+            self.user_message = ChatMessage(
+                role="user",
+                content=PromptTemplate(
+                    self.user_prompt or self.persona.user_prompt
+                ).format(goal=goal),
+            )
         self.no_thoughts_prompt = ChatMessage(
             role="user",
             content=PromptTemplate(DEFAULT_NO_THOUGHTS_PROMPT).format(goal=goal),
@@ -352,8 +356,7 @@ class CodeActAgent(Workflow):
     ) -> ChatResponse | None:
         logger.debug("🔍 Getting LLM response...")
         messages_to_send = [self.system_prompt]
-        if self.schema_prompt is not None:
-            messages_to_send.append(self.schema_prompt)
+
         messages_to_send += chat_history
         messages_to_send = [chat_utils.message_copy(msg) for msg in messages_to_send]
         try:

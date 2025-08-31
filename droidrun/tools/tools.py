@@ -17,7 +17,7 @@ class Tools(ABC):
 
     @staticmethod
     def ui_action(func):
-        """"
+        """
         Decorator to capture screenshots and UI states for actions that modify the UI.
         """
         @wraps(func)

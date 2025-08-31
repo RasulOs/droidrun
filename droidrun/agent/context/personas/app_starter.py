@@ -9,7 +9,6 @@ APP_STARTER_EXPERT = AgentPersona(
     ],
     allowed_tools=[
         Tools.start_app.__name__,
-        Tools.set_output.__name__,
         Tools.complete.__name__
     ],
     required_context=[
@@ -18,7 +17,7 @@ APP_STARTER_EXPERT = AgentPersona(
     user_prompt="""
     **Current Request:**
     {goal}
-    **Is the precondition met? What is your reasoning and the next step to address this request?** Explain your thought process then provide code in ```python ... ``` tags if needed.""""",
+    **Is the precondition met? What is your reasoning and the next step to address this request?** Explain your thought process then provide code in ```python ... ``` tags if needed.""",
 
     system_prompt= """You are an App Starter Expert specialized in Android application lifecycle management. Your core expertise includes:
 

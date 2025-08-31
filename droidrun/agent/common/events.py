@@ -43,7 +43,7 @@ class KeyPressActionEvent(MacroEvent):
     key_name: str = ""
 
 class StartAppEvent(MacroEvent):
-    """"Event for starting an app"""
+    """Event for starting an app"""
     package: str
     activity: str = None
 

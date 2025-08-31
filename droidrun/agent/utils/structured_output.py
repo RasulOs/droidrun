@@ -57,8 +57,8 @@ def schema_instruction(schema: Type[BaseModel]) -> str:
             for name, f in props.items()
         ])
         return (
-            "Return a JSON object matching this schema: "
-            f"model={schema.__name__}, required={required}, fields=[{fields_desc}]"
+            f"Return a JSON object with the following fields: {fields_desc}. "
+            f"Required fields: {', '.join(required) if required else 'none'}."
         )
     except Exception as e:
         logger.exception(

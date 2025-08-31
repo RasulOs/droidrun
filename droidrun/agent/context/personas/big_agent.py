@@ -29,7 +29,7 @@ BIG_AGENT = AgentPersona(
     {goal}
     **Is the precondition met? What is your reasoning and the next step to address this request?**
     Explain your thought process then provide code in ```python ... ``` tags if needed.
-    """"",
+    """,
 
     system_prompt="""
     You are a helpful AI assistant that can write and execute Python code to solve problems.

@@ -10,7 +10,7 @@ separated from the workflow logic for better maintainability.
 DEFAULT_CODE_ACT_USER_PROMPT = """**Current Request:**
 {goal}
 
-**Is the precondition met? What is your reasoning and the next step to address this request?** Explain your thought process then provide code in ```python ... ``` tags if needed."""""
+**Is the precondition met? What is your reasoning and the next step to address this request?** Explain your thought process then provide code in ```python ... ``` tags if needed."""
 
 # Prompt to remind the agent to provide thoughts before code
 DEFAULT_NO_THOUGHTS_PROMPT = """Your previous response provided code without explaining your reasoning first. Remember to always describe your thought process and plan *before* providing the code block.
